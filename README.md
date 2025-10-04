@@ -1,5 +1,5 @@
-# Discord Rich Presence for World of Warcraft
-This branch has some changes to make it work for 3.3.5, but it probably will work with other versions less than 4.0.1. The current `zones.txt` file has all entrys for MoP, but can miss some entrys for 3.3.5. In case you will find them, open an issue and post `log.txt` file, I will add these entrys in 3.3.5-specific `zones.txt`.
+# Discord Rich Presence for Ascension World of Warcraft
+This branch has some changes to make it work for Ascension WoW. 
 I tried to make the installation as easy as possible, so I hope you won't face any problems.
 
 ## Preview
@@ -37,4 +37,5 @@ If you want to translate it to your language, check `local.lua` and `WoWPresence
 
 ## LICENSE
 Both the addon and the WoWPresence.py script are in the public domain.
+Original Project by [AipNooBest](https://github.com/AipNooBest/wow-discord-rpc)
 The rpc.py file is from [this repo](https://github.com/suclearnub/python-discord-rpc) and it's [MIT licenced](https://raw.githubusercontent.com/AipNooBest/wow-discord-rpc/main/script/rpc.py-LICENSE).
