@@ -12,10 +12,10 @@ import logging
 
 # localisation variables. Change them for your preferences.
 inMainMenu = "In main menu"
-
 # these are internal use variables, don't touch them, unless you know what you're doing.
 logging.basicConfig(filename='log.txt', filemode='w', encoding='utf-8', level=logging.INFO)
 decoded = ''
+DEBUG_SAVE_STRIP = False
 wow_hwnd = None
 rpc_obj = None
 timePlayed = None
@@ -30,35 +30,81 @@ print("The script is running!\n"
 
 def callback(hwnd, extra):
     global wow_hwnd
-    if (win32gui.GetWindowText(hwnd) == 'World of Warcraft' and
-            win32gui.GetClassName(hwnd).startswith('GxWindowClass')):
+    if (win32gui.GetWindowText(hwnd) == 'Ascension'):
         wow_hwnd = hwnd
 
 
-def getImage(rect, offsetX, offsetY, iter):
-    new_rect = (rect[0] + offsetX, rect[1] + offsetY, rect[2], rect[1] + offsetY + 2)
-    logging.debug("Window rectangle: %s; Iteration %s", str(new_rect), iter)
+def save_debug_image(rect, offsetX, offsetY, height=50, iter_tag=0):
+    """
+    Grabs a taller slice of the same top-left band we read for pixels,
+    and saves it to the script directory for inspection.
+    """
+    # Same left/right/offset logic as getImage, but with a taller height.
+    new_rect = (rect[0] + offsetX, rect[1] + offsetY, rect[2], rect[1] + offsetY + height)
     try:
-        im = ImageGrab.grab(new_rect, all_screens=True)
-        logging.debug("Pixel at position 0,0: " + str(im.getpixel((0, 0))))
-        # Firstly try to get pixels at absolute position 0, 0 - if the game is running in borderless mode.
+        im50 = ImageGrab.grab(new_rect, all_screens=True)
+        out_path = os.path.join(dir_path, f"debug_strip_{iter_tag}_{int(time.time())}.png")
+        im50.save(out_path)
+        logging.info("Saved debug image: %s", out_path)
+    except Exception as exc:
+        logging.error("Failed to save debug image: %s", exc)
+
+
+def getImage(rect, offsetX, offsetY, iter, strip_h=2, bleed_guard_dx=1, bleed_guard_dy=1):
+    """
+    Grab a top strip with extra guard margins to avoid edge blending and index errors.
+    Returns an image of exact height `strip_h`, whose (0,0) is already shifted by the guard.
+    """
+    # Build a bbox with extra vertical margin so we can crop down safely.
+    left = rect[0] + offsetX
+    top = rect[1] + offsetY
+    right = rect[2]  # full window right edge
+    lower = top + strip_h + bleed_guard_dy  # add room for guard
+
+    # Clamp to window bottom just in case
+    lower = min(lower, rect[3])
+    if right <= left or lower <= top + bleed_guard_dy:
+        logging.error("Invalid bbox after guards: %s", (left, top, right, lower))
+        return False
+
+    new_rect = (left, top, right, lower)
+    logging.debug("Window rectangle (with guard): %s; Iteration %s", str(new_rect), iter)
+
+    try:
+        im_full = ImageGrab.grab(new_rect, all_screens=True)
+
+        # Now crop away the guard so returned image has height=strip_h and starts at safe origin.
+        crop_left = bleed_guard_dx
+        crop_top = bleed_guard_dy
+        crop_right = im_full.width  # keep full width (minus dx)
+        crop_bottom = bleed_guard_dy + strip_h
+
+        # Clamp crop to avoid index errors if window is tiny/edge cases.
+        crop_left = max(0, min(crop_left, im_full.width - 1))
+        crop_top = max(0, min(crop_top, im_full.height - 1))
+        crop_right = max(crop_left + 1, min(crop_right, im_full.width))
+        crop_bottom = max(crop_top + 1, min(crop_bottom, im_full.height))
+
+        im = im_full.crop((crop_left, crop_top, crop_right, crop_bottom))
+
+        # Optional sanity check sample that can’t go OOB:
+        logging.debug("Safe origin pixel: %s", im.getpixel((0, 0)))
+
+        # check (0,0) for the sentinel color, keep doing that:
         if im.getpixel((0, 0)) == (36, 36, 36):
+            logging.debug("AbsPosFound (after guard+crop)")
             return im
-        # If 0, 0 coordinates are wrong, the game is probably running in windowed mode with borders.
-        else:
-            if iter == 0:
-                # Getting height of the windows border (this may vary depending on DWM scaling, so hard-coding is bad).
-                height = (win32api.GetSystemMetrics(win32con.SM_CYCAPTION) +
-                          win32api.GetSystemMetrics(win32con.SM_CYBORDER) * 4 +
-                          win32api.GetSystemMetrics(win32con.SM_CYEDGE) * 2)
-                logging.debug("Window border height: %s" % height)
-                # Check if the game is running fullscreen-windowed mode with borders, so we apply only Y offset.
-                return getImage(rect, offsetX, height, 1)
-            elif iter == 1:
-                # The last option - the game is running in pure windowed mode, so we apply both offsets.
-                return getImage(rect, 8, offsetY, 2)
-            # If neither of the above options are true, the pixel array is probably does not exist.
-            return False
+
+        # Borderless/windowed fallback stays the same:
+        if iter == 0:
+            height = (win32api.GetSystemMetrics(win32con.SM_CYCAPTION) + win32api.GetSystemMetrics(win32con.SM_CYBORDER) * 4 + win32api.GetSystemMetrics(win32con.SM_CYEDGE) * 2)
+            logging.debug("Window border height: %s", height)
+            return getImage(rect, offsetX, height, 1, strip_h, bleed_guard_dx, bleed_guard_dy)
+        elif iter == 1:
+            return getImage(rect, 8, offsetY, 2, strip_h, bleed_guard_dx, bleed_guard_dy)
+
+        return False
+
     except Image.DecompressionBombError:
         logging.error('DecompressionBombError')
         return False
@@ -71,15 +117,20 @@ def read_squares(hwnd):
     if im is False:
         return 1
 
+
     # Check if there's a message at the top left corner.
     # If there's none, then we're either in main menu or addon is not working.
     # Sometimes addon moves 1 px to the right, so we check if that is the case.
     offset = 0
     if im.getpixel((1, 0)) == (0, 0, 0):
         logging.debug("Pixels are 1x1 starting at position 0")
-    # Second pixel also can be duplicated due to resizing.
-    elif im.getpixel((1, 0)) == (36, 36, 36) and (im.getpixel((2, 0)) == (0, 0, 0) or im.getpixel((2, 0)) == (36, 36, 36)):
-        logging.debug("Pixels are more than 1x1 or they start at position 1")
+        # Second pixel also can be duplicated due to resizing.
+    elif im.getpixel((1, 0)) == (36, 36, 36) and im.getpixel((2, 0)) in ((0, 0, 0), (36, 36, 36)):
+        p2 = im.getpixel((2, 0))
+        if p2 == (0, 0, 0):
+            logging.debug("Pixels start at position 1")
+        else:  # (36, 36, 36)
+            logging.debug("Pixels are more than 1x1 (duplicated due to resizing)")
         offset += 1
     else:
         logging.info("Could not find pixel array. You're either in main menu or addon is not working")
@@ -98,7 +149,7 @@ def read_squares(hwnd):
             skipped_pixels_counter += 1
             continue
 
-        next_pixel_colors = im.getpixel((pixel_idx+1, 0))
+        next_pixel_colors = im.getpixel((pixel_idx + 1, 0))
         # If we've found difference in pixels, there's a good chance these are
         # "smoothed" pixels and they can't be decoded as they don't represent any data
         if current_pixel_colors != next_pixel_colors:
@@ -107,7 +158,7 @@ def read_squares(hwnd):
             skipped_pixels_counter = 1
 
     try:
-        logging.debug('Trying to decode pixels: %s' % ", ".join(map(str,read)))
+        logging.debug('Trying to decode pixels: %s' % ", ".join(map(str, read)))
         decoded = bytes(read).decode('utf-8').rstrip('\0')
     except Exception as exc:
         logging.error('Error decoding the pixels: %s.' % exc)
@@ -179,25 +230,27 @@ while True:
             time.sleep(3)
             continue
         else:
-            zoneName, playerLevel, playerName, playerInfo, engClass, playerState, mapID = lines
+            zoneName, playerLevel, playerName, realmName, playerInfo, engClass, playerState, mapID = lines
             connect_to_discord()
 
-            logging.info('Setting new activity: %s - %s - %s - %s - %s - %s - %s' % (
-                zoneName, playerLevel, playerName, playerInfo, engClass, playerState, mapID))
+            logging.info('Setting new activity: %s - %s - %s- %s - %s - %s - %s - %s' % (
+                zoneName, playerLevel, playerName, realmName, playerInfo, engClass, playerState, mapID))
 
             if timePlayed is None:
-                timePlayed = {'start': round(time.time())}
+                timePlayed = {'sta  rt': round(time.time())}
             if mapID in zones.keys():
                 zone = zones[str(mapID)]
             else:
                 zone = "wow-icon"
                 logging.warning("The zone is not in the list: %s [ID: %s]" % (zoneName, mapID))
             activity = {
-                'details': "%s [%s LVL]" % (playerName, playerLevel),
-                'state': playerState,
+                'details': "Ascension (%s)" % realmName,
+                'details_url': "https://ascension.gg/en",
+                'state': "%s [Lvl %s]" % (playerName, playerLevel),
                 'assets': {
                     'large_image': zone,
                     'large_text': zoneName,
+                    'large_url': "https://ascension.gg/en",
                     'small_image': engClass.lower(),
                     'small_text': playerInfo
                 },
