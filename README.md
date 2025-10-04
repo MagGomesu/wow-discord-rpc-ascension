@@ -3,6 +3,10 @@ This branch has some changes to make it work for Ascension WoW.
 I tried to make the installation as easy as possible, so I hope you won't face any problems.
 
 ## Preview
+![image](https://github.com/user-attachments/assets/51528f03-7285-4c60-b245-ffb55fa33166")
+
+
+
 ![image](https://user-images.githubusercontent.com/47401054/114401229-6455f580-9bab-11eb-907f-b09db92b7e18.png) - if you're playing solo and don't have max lvl
 
 ![image](https://user-images.githubusercontent.com/47401054/114401587-bbf46100-9bab-11eb-84f3-f2bc64377157.png) - if you're playing solo and have max lvl
