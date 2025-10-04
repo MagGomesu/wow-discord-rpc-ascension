@@ -10,11 +10,11 @@ The Ascension server name has a link to Ascension website, in case they wanna jo
 ## Requirements
 - Python 3 for Windows, the [web-based installer](https://www.python.org/downloads/windows/) is OK. When it's finished installing, you will be asked if you want Python to be added to your $PATH, you have to say yes.
 ## Setup
-Launch the `Installer.bat`. It will install everything is required, you will be prompted to select your AddOns Folder.
+- Launch the `Installer.bat`. It will install everything is required, you will be prompted to select your AddOns Folder.
 
-From now on you'll need to **run the game from the Desktop Launcher** or the .bat file.
+- From now on you'll need to **run the game from the Desktop Launcher** or the .bat file.
 
-**You can't move `WoW.bat` anywhere else, Game has to be launched from Desktop Shortcut or `AddOns/IPC/` directory.**
+**You can't move `WoW.bat` (installed in your addons folder) anywhere else, Game has to be launched from Desktop Shortcut or `AddOns/IPC/` directory using WoW.bat.**
 
 **Note:** you have to play the game in borderless or windowed mode, full-screen is **not supported**!
 
