@@ -3,7 +3,7 @@ This branch has some changes to make it work for Ascension WoW.
 I tried to make the installation as easy as possible, so I hope you won't face any problems.
 
 ## Preview
-![image](https://github.com/user-attachments/assets/51528f03-7285-4c60-b245-ffb55fa33166")
+![image](https://github.com/user-attachments/assets/51528f03-7285-4c60-b245-ffb55fa33166)
 
 
 ## Requirements
