@@ -6,15 +6,6 @@ I tried to make the installation as easy as possible, so I hope you won't face a
 ![image](https://github.com/user-attachments/assets/51528f03-7285-4c60-b245-ffb55fa33166")
 
 
-
-![image](https://user-images.githubusercontent.com/47401054/114401229-6455f580-9bab-11eb-907f-b09db92b7e18.png) - if you're playing solo and don't have max lvl
-
-![image](https://user-images.githubusercontent.com/47401054/114401587-bbf46100-9bab-11eb-84f3-f2bc64377157.png) - if you're playing solo and have max lvl
-
-![image](https://user-images.githubusercontent.com/47401054/114400413-9b77d700-9baa-11eb-9056-0581a6d12d6e.png) - if you're playing in group, the ilvl/xp will be overlapped
-
-![image](https://user-images.githubusercontent.com/47401054/114402153-3a510300-9bac-11eb-877f-deb94e434e13.png) - and of course dungeons and raids are supported
-
 ## Requirements
 - Python 3 for Windows, the [web-based installer](https://www.python.org/downloads/windows/) is OK. When it's finished installing, you will be asked if you want Python to be added to your $PATH, you have to say yes.
 ## Setup
