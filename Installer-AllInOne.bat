@@ -127,30 +127,25 @@ del "%ZIPTMP%" 2>nul
 :afterFetch
 
 REM ============================================================
-REM 3) Ensure Python deps (WoWPresence requirements)
+REM 3) Ensure Python deps (WoWPresence requirements) — robust
+REM    - echo( … ) avoids () parsing
+REM    - run pip in a fresh cmd so no prior block state leaks in
 REM ============================================================
-echo Installing Python deps (pillow, pywin32)...
-py -m pip install --disable-pip-version-check --quiet pillow pywin32
+echo(Installing Python deps [pillow, pywin32]...
+setlocal DisableDelayedExpansion
+cmd /d /c "py -m pip install --disable-pip-version-check --quiet pillow pywin32"
+set "PIP_RC=%ERRORLEVEL%"
+endlocal
 
-REM ============================================================
-REM 4) Run upstream Installer.bat (creates WoW.bat in IPC)
-REM    Guard against self-recursion: skip if that file is THIS script
-REM ============================================================
-set "UPSTREAM_INSTALLER=%IPC_DIR%\Installer.bat"
-for %%P in ("%~f0") do set "SELF_FULL=%%~fP"
-if /I "%SELF_FULL%"=="%UPSTREAM_INSTALLER%" (
-  echo Skipping upstream Installer.bat (detected same file)...
-) else (
-  if exist "%UPSTREAM_INSTALLER%" (
-    echo Running upstream Installer.bat...
-    pushd "%IPC_DIR%"
-    call "%UPSTREAM_INSTALLER%"
-    popd
-  ) else (
-    echo WARNING: Installer.bat not found in "%IPC_DIR%".
-    echo Skipping upstream installer step.
+if not "%PIP_RC%"=="0" (
+  echo(Pip quiet install failed, retrying verbose for diagnostics...
+  py -m pip install pillow pywin32
+  if errorlevel 1 (
+    echo(FATAL: pip install still failing.
+    goto :errorDownload
   )
 )
+
 
 REM ============================================================
 REM 5) Write "Ascension Launcher.bat" wrapper in IPC
@@ -187,10 +182,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ws=New-Object -ComObject WScript.Shell; $s=$ws.CreateShortcut('%DESKTOP%\%SHORTCUT_NAME%.lnk');" ^
   "$s.TargetPath='%BAT_PATH%'; $s.WorkingDirectory='%IPC_DIR%';" ^
   "if(Test-Path '%ICON_EXE%'){ $s.IconLocation='%ICON_EXE%,0' };" ^
-  "$s.Description='Ascension + WoWPresence (keeps .bat in AddOns\IPC)'; $s.Save()"
+  "$s.Description='Ascension + WoWPresence'; $s.Save()"
 
 echo.
-echo ✅ Installation complete.
+echo Installation complete.
 echo - AddOns: "%ADDONS_DIR%"
 echo - IPC:     "%IPC_DIR%"
 echo - Shortcut on Desktop: "%SHORTCUT_NAME%.lnk"
