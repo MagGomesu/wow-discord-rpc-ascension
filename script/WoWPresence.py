@@ -1,7 +1,8 @@
 import sys
 import rpc
 import time
-import json
+import re
+import unicodedata
 import os
 import ast
 from PIL import Image, ImageGrab
@@ -33,6 +34,58 @@ def callback(hwnd, extra):
     if (win32gui.GetWindowText(hwnd) == 'Ascension'):
         wow_hwnd = hwnd
 
+
+# Known oddball(s) that don't follow the plain apostrophe→underscore rule.
+EXCEPTIONS = {
+    "vashj'ir": "vashjir",   # you want "vashjir" (no underscore)
+    "vashj’ir": "vashjir",   # curly apostrophe variant
+}
+
+def sanitize_zone_name(name: str) -> str:
+    """
+    Convert a WoW zone name to your sanitized slug.
+
+    Rules:
+    - If a comma exists, keep only the part before the first comma (trim spaces).
+      e.g., "Ironforge, Ironforge" → "ironforge"
+    - Lowercase.
+    - Replace apostrophes (straight or curly) with underscores.
+      e.g., "Un'goro Crater" → "un_goro-crater"
+    - Convert whitespace to single hyphens.
+    - Convert any char not in [a-z0-9_-] to hyphens.
+    - Collapse repeated separators and trim leading/trailing separators.
+    - Strip diacritics safely (normalize to ASCII).
+    """
+    if not isinstance(name, str):
+        raise TypeError("name must be a string")
+
+    # 1) Trim anything after first comma
+    head = name.split(",", 1)[0].strip()
+
+    # 2) Fast-path exceptions (compare lowercased)
+    low = head.lower()
+    if low in EXCEPTIONS:
+        return EXCEPTIONS[low]
+
+    # 3) Strip diacritics and lowercase
+    head = unicodedata.normalize("NFKD", head).encode("ascii", "ignore").decode("ascii")
+    s = head.lower()
+
+    # 4) Apostrophes → underscores (straight/curly/grave)
+    s = s.replace("'", "_").replace("’", "_").replace("`", "_")
+
+    # 5) Whitespace → hyphen
+    s = re.sub(r"\s+", "-", s)
+
+    # 6) Non-allowed chars → hyphen (keep a-z, 0-9, hyphen, underscore)
+    s = re.sub(r"[^a-z0-9\-_]", "-", s)
+
+    # 7) Collapse repeats and tidy edges
+    s = re.sub(r"-{2,}", "-", s)
+    s = re.sub(r"_{2,}", "_", s)
+    s = s.strip("-_")
+
+    return s
 
 def save_debug_image(rect, offsetX, offsetY, height=50, iter_tag=0):
     """
@@ -238,25 +291,30 @@ while True:
 
             if timePlayed is None:
                 timePlayed = {'sta  rt': round(time.time())}
-            if mapID in zones.keys():
-                zone = zones[str(mapID)]
+            #if mapID in zones.keys():
+            #    zone = zones[str(mapID)]
+
+
+            if zoneName != "":
+                zone = sanitize_zone_name(zoneName)
+                zoneName = zoneName.split(",", 1)[0].strip()
             else:
                 zone = "wow-icon"
-                logging.warning("The zone is not in the list: %s [ID: %s]" % (zoneName, mapID))
-            activity = {
-                'details': "Ascension (%s)" % realmName,
-                'details_url': "https://ascension.gg/en",
-                'state': "%s [Lvl %s]" % (playerName, playerLevel),
-                'assets': {
-                    'large_image': zone,
-                    'large_text': zoneName,
-                    'large_url': "https://ascension.gg/en",
-                    'small_image': engClass.lower(),
-                    'small_text': playerInfo
-                },
-                'timestamps': timePlayed
-            }
-            update_activity(activity)
+            logging.warning("The zone is not in the list: %s [ID: %s]" % (zoneName, mapID))
+        activity = {
+            'details': "Ascension (%s)" % realmName,
+            'details_url': "https://ascension.gg/en",
+            'state': "%s [Lvl %s]" % (playerName, playerLevel),
+            'assets': {
+                'large_image': zone,
+                'large_text': zoneName,
+                'large_url': "https://ascension.gg/en",
+                'small_image': engClass.lower(),
+                'small_text': playerInfo
+            },
+            'timestamps': timePlayed
+        }
+        update_activity(activity)
 
     elif not wow_hwnd and rpc_obj:
         logging.info('WoW no longer exists, terminating...')
