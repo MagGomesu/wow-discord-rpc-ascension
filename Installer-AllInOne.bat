@@ -118,7 +118,7 @@ if not defined TOP (
   goto :errorDownload
 )
 
-robocopy "%TOP%" "%IPC_DIR%" /E /NFL /NDL /NJH /NJS /NC /NS >NUL
+robocopy "%TOP%" "%IPC_DIR" /E /NFL /NDL /NJH /NJS /NC /NS >NUL
 if errorlevel 8 goto :errorDownload
 
 rd /s /q "%UNZIP_DIR%" 2>nul
@@ -146,21 +146,59 @@ if not "%PIP_RC%"=="0" (
   )
 )
 
+REM ============================================================
+REM 4) Locate Ascension Launcher (auto-detect; if missing, GUI picker)
+REM ============================================================
+set "ASC_EXE="
+if exist "%ProgramFiles%\Ascension Launcher\Ascension Launcher.exe" set "ASC_EXE=%ProgramFiles%\Ascension Launcher\Ascension Launcher.exe"
+if not defined ASC_EXE if defined ProgramFiles(x86) if exist "%ProgramFiles(x86)%\Ascension Launcher\Ascension Launcher.exe" set "ASC_EXE=%ProgramFiles(x86)%\Ascension Launcher\Ascension Launcher.exe"
+
+if not defined ASC_EXE (
+  echo Ascension not found in Program Files. Please select its install folder.
+  setlocal DisableDelayedExpansion
+  set "TMPASC=%TEMP%\asc_%RANDOM%%RANDOM%.txt"
+  powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "Add-Type -AssemblyName System.Windows.Forms; " ^
+    "$d = New-Object Windows.Forms.FolderBrowserDialog; " ^
+    "$d.Description = 'Select the Ascension Launcher folder (contains \"Ascension Launcher.exe\")'; " ^
+    "$d.RootFolder = [System.Environment+SpecialFolder]::MyComputer; " ^
+    "if($d.ShowDialog() -ne 'OK'){ exit 1 }; " ^
+    "if(-not (Test-Path (Join-Path $d.SelectedPath 'Ascension Launcher.exe'))){ [System.Windows.Forms.MessageBox]::Show('Ascension Launcher.exe was not found in the selected folder.','Invalid folder',[Windows.Forms.MessageBoxButtons]::OK,[Windows.Forms.MessageBoxIcon]::Error); exit 2 }; " ^
+    "[IO.File]::WriteAllText('%TMPASC%', $d.SelectedPath)"
+  if errorlevel 1 (
+    echo Cancelled or invalid selection.
+    exit /b 1
+  )
+  set /p ASC_DIR=<"%TMPASC%"
+  del "%TMPASC%" >nul 2>&1
+  endlocal & set "ASC_DIR=%ASC_DIR%"
+  set "ASC_EXE=%ASC_DIR%\Ascension Launcher.exe"
+)
+
+if not exist "%ASC_EXE%" (
+  echo [ERROR] Could not locate Ascension Launcher.exe.
+  echo Re-run the installer and choose the correct folder.
+  pause >nul
+  exit /b 1
+)
 
 REM ============================================================
-REM 5) Write "Ascension Launcher.bat" wrapper in IPC
+REM 5) Write "Ascension Launcher.bat" wrapper in IPC (uses chosen exe)
 REM ============================================================
 set "BAT_NAME=Ascension Launcher.bat"
 set "BAT_PATH=%IPC_DIR%\%BAT_NAME%"
 > "%BAT_PATH%" echo @echo off
 >>"%BAT_PATH%" echo setlocal EnableExtensions
 >>"%BAT_PATH%" echo pushd "%%~dp0"
->>"%BAT_PATH%" echo rem Detect Ascension Launcher path (x64/x86)
->>"%BAT_PATH%" echo set "LauncherExe="
->>"%BAT_PATH%" echo if exist "%%ProgramFiles%%\Ascension Launcher\Ascension Launcher.exe" set "LauncherExe=%%ProgramFiles%%\Ascension Launcher\Ascension Launcher.exe"
->>"%BAT_PATH%" echo if not defined LauncherExe if defined ProgramFiles(x86) if exist "%%ProgramFiles(x86)%%\Ascension Launcher\Ascension Launcher.exe" set "LauncherExe=%%ProgramFiles(x86)%%\Ascension Launcher\Ascension Launcher.exe"
->>"%BAT_PATH%" echo if not defined LauncherExe (
->>"%BAT_PATH%" echo   echo [ERROR] Ascension Launcher.exe not found in Program Files.
+>>"%BAT_PATH%" echo rem Preferred Ascension path captured at install time
+>>"%BAT_PATH%" echo set "LauncherExe=%ASC_EXE%"
+>>"%BAT_PATH%" echo rem Fallbacks if it moved
+>>"%BAT_PATH%" echo if not exist "%%LauncherExe%%" (
+>>"%BAT_PATH%" echo   if exist "%%ProgramFiles%%\Ascension Launcher\Ascension Launcher.exe" set "LauncherExe=%%ProgramFiles%%\Ascension Launcher\Ascension Launcher.exe"
+>>"%BAT_PATH%" echo   if not exist "%%LauncherExe%%" if defined ProgramFiles(x86) if exist "%%ProgramFiles(x86)%%\Ascension Launcher\Ascension Launcher.exe" set "LauncherExe=%%ProgramFiles(x86)%%\Ascension Launcher\Ascension Launcher.exe"
+>>"%BAT_PATH%" echo )
+>>"%BAT_PATH%" echo if not exist "%%LauncherExe%%" (
+>>"%BAT_PATH%" echo   echo [ERROR] Ascension Launcher.exe not found. Re-run installer to set path.
 >>"%BAT_PATH%" echo   popd ^& exit /b 1
 >>"%BAT_PATH%" echo )
 >>"%BAT_PATH%" echo rem Launch Ascension quietly
@@ -171,11 +209,12 @@ set "BAT_PATH=%IPC_DIR%\%BAT_NAME%"
 >>"%BAT_PATH%" echo endlocal
 
 REM ============================================================
-REM 6) Desktop shortcut (icon from Ascension; fallback if missing)
+REM 6) Desktop shortcut (icon from chosen Ascension path; fallback if missing)
 REM ============================================================
 set "SHORTCUT_NAME=Ascension Launcher"
-set "ICON_EXE=%ProgramFiles%\Ascension Launcher\Ascension Launcher.exe"
-if not exist "%ICON_EXE%" if defined ProgramFiles(x86) set "ICON_EXE=%ProgramFiles(x86)%\Ascension Launcher\Ascension Launcher.exe"
+set "ICON_EXE=%ASC_EXE%"
+if not exist "%ICON_EXE%" if exist "%ProgramFiles%\Ascension Launcher\Ascension Launcher.exe" set "ICON_EXE=%ProgramFiles%\Ascension Launcher\Ascension Launcher.exe"
+if not exist "%ICON_EXE%" if defined ProgramFiles(x86) if exist "%ProgramFiles(x86)%\Ascension Launcher\Ascension Launcher.exe" set "ICON_EXE=%ProgramFiles(x86)%\Ascension Launcher\Ascension Launcher.exe"
 set "DESKTOP=%USERPROFILE%\Desktop"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
@@ -188,10 +227,12 @@ echo.
 echo Installation complete.
 echo - AddOns: "%ADDONS_DIR%"
 echo - IPC:     "%IPC_DIR%"
+echo - Ascension: "%ASC_EXE%"
 echo - Shortcut on Desktop: "%SHORTCUT_NAME%.lnk"
 echo.
 echo IMPORTANT: Always launch using the shortcut or the .bat inside AddOns\IPC.
 echo (Do NOT move the .bat elsewhere.)
+echo You may now close this window. Press any key
 echo.
 pause >nul
 goto :end
