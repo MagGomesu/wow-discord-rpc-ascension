@@ -5,12 +5,12 @@ I tried to make the installation as easy as possible, so I hope you won't face a
 ## Preview
 ![image](https://github.com/user-attachments/assets/51528f03-7285-4c60-b245-ffb55fa33166)
 
-The Ascension server name has a link to Ascension website, in case they wanna join the server 
+The Ascension server name has a link to Ascension website, in case whoever is looking wants to join the server 
 
 ## Requirements
 - Python 3 for Windows, the [web-based installer](https://www.python.org/downloads/windows/) is OK. When it's finished installing, you will be asked if you want Python to be added to your $PATH, you have to say yes.
 ## Setup
-- Launch the `Installer.bat`. It will install everything is required, you will be prompted to select your AddOns Folder.
+- Launch the `Installer.bat`. It will install everything is required, you will be prompted to select your AddOns Folder, and your ascension installation folder if its not on default path.
 
 - From now on you'll need to **run the game from the Desktop Launcher** or the .bat file.
 
