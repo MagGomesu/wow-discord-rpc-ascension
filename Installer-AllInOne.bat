@@ -192,11 +192,6 @@ set "BAT_PATH=%IPC_DIR%\%BAT_NAME%"
 >>"%BAT_PATH%" echo pushd "%%~dp0"
 >>"%BAT_PATH%" echo rem Preferred Ascension path captured at install time
 >>"%BAT_PATH%" echo set "LauncherExe=%ASC_EXE%"
->>"%BAT_PATH%" echo rem Fallbacks if it moved
->>"%BAT_PATH%" echo if not exist "%%LauncherExe%%" (
->>"%BAT_PATH%" echo   if exist "%%ProgramFiles%%\Ascension Launcher\Ascension Launcher.exe" set "LauncherExe=%%ProgramFiles%%\Ascension Launcher\Ascension Launcher.exe"
->>"%BAT_PATH%" echo   if not exist "%%LauncherExe%%" if defined ProgramFiles(x86) if exist "%%ProgramFiles(x86)%%\Ascension Launcher\Ascension Launcher.exe" set "LauncherExe=%%ProgramFiles(x86)%%\Ascension Launcher\Ascension Launcher.exe"
->>"%BAT_PATH%" echo )
 >>"%BAT_PATH%" echo if not exist "%%LauncherExe%%" (
 >>"%BAT_PATH%" echo   echo [ERROR] Ascension Launcher.exe not found. Re-run installer to set path.
 >>"%BAT_PATH%" echo   popd ^& exit /b 1
@@ -231,7 +226,7 @@ echo - Ascension: "%ASC_EXE%"
 echo - Shortcut on Desktop: "%SHORTCUT_NAME%.lnk"
 echo.
 echo IMPORTANT: Always launch using the shortcut or the .bat inside AddOns\IPC.
-echo (Do NOT move the .bat elsewhere.)
+echo [Do NOT move the .bat elsewhere.]
 echo You may now close this window. Press any key
 echo.
 pause >nul
