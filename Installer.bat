@@ -52,31 +52,45 @@ echo Using AddOns folder: "%ADDONS_DIR%"
 set "IPC_DIR=%ADDONS_DIR%\IPC"
 if not exist "%IPC_DIR%" mkdir "%IPC_DIR%"
 
-REM -----------------------------
-REM 2) Fetch project into AddOns\IPC
-REM    Avoid IF (...) blocks around PowerShell to prevent () parsing issues
-REM -----------------------------
+REM ─────────────────────────────────────────────────────────────
+REM 2) Fetch project into AddOns\IPC (git with smart fallback → ZIP)
+REM ─────────────────────────────────────────────────────────────
+set "REPO_GIT=https://github.com/MagGomesu/wow-discord-rpc-ascension"
+set "REPO_ZIP=https://github.com/MagGomesu/wow-discord-rpc-ascension/archive/refs/heads/wotlk.zip"
 
+REM Prefer git if available
 git --version >NUL 2>&1
-if not errorlevel 1 goto :doGit
-goto :doZip
+if errorlevel 1 goto :doZip
 
-:doGit
+REM --- Try git clone into a temp working dir
 echo Cloning repo via git...
-set "TMP_REPO=%TEMP%\wowrpc-%RANDOM%-%TIME:~6,2%"
+set "TMP_REPO=%TEMP%\wowrpc-%RANDOM%-%RANDOM%"
 if exist "%TMP_REPO%" rmdir /s /q "%TMP_REPO%"
-git clone -b wotlk --single-branch https://github.com/MagGomesu/wow-discord-rpc-ascension "%TMP_REPO%"
-if errorlevel 1 goto :errorClone
+git clone -b wotlk --single-branch "%REPO_GIT%" "%TMP_REPO%"
+if errorlevel 1 (
+  echo [git] clone failed; falling back to ZIP...
+  goto :doZip
+)
+
 robocopy "%TMP_REPO%" "%IPC_DIR%" /E /NFL /NDL /NJH /NJS /NC /NS >NUL
 rmdir /s /q "%TMP_REPO%"
 goto :afterFetch
 
 :doZip
-echo git not found. Downloading ZIP (wotlk)...
-powershell -NoProfile -ExecutionPolicy Bypass -Command " $u='https://github.com/MagGomesu/wow-discord-rpc-ascension/archive/refs/heads/wotlk.zip'; $zip=Join-Path $env:TEMP ('wowrpc-'+[guid]::NewGuid().ToString()+'.zip'); Invoke-WebRequest -Uri $u -OutFile $zip; $unz=Join-Path $env:TEMP ('wowrpc-'+[guid]::NewGuid().ToString()); Expand-Archive -Path $zip -DestinationPath $unz -Force; $top=(Get-ChildItem -Directory $unz | Select-Object -First 1); Copy-Item -Path (Join-Path $top.FullName '*') -Destination '%IPC_DIR%' -Recurse -Force; Remove-Item $zip -Force; Remove-Item $unz -Recurse -Force "
+echo Downloading ZIP (wotlk)...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$u='%REPO_ZIP%';" ^
+  "$zip=Join-Path $env:TEMP ('wowrpc-'+[guid]::NewGuid().ToString()+'.zip');" ^
+  "Invoke-WebRequest -Uri $u -OutFile $zip;" ^
+  "$unz=Join-Path $env:TEMP ('wowrpc-'+[guid]::NewGuid().ToString());" ^
+  "Expand-Archive -Path $zip -DestinationPath $unz -Force;" ^
+  "$top=(Get-ChildItem -Directory $unz | Select-Object -First 1);" ^
+  "Copy-Item -Path (Join-Path $top.FullName '*') -Destination '%IPC_DIR%' -Recurse -Force;" ^
+  "Remove-Item $zip -Force; Remove-Item $unz -Recurse -Force"
 if errorlevel 1 goto :errorDownload
 
 :afterFetch
+
 
 REM -----------------------------
 REM 3) Ensure Python deps (WoWPresence requirements)
