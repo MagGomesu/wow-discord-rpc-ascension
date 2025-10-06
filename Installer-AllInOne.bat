@@ -204,26 +204,43 @@ set "BAT_PATH=%IPC_DIR%\%BAT_NAME%"
 >>"%BAT_PATH%" echo endlocal
 
 REM ============================================================
-REM 6) Desktop shortcut (icon from chosen Ascension path; fallback if missing)
+REM 6) Desktop shortcut (write to Common Desktop; ensure folder exists)
+REM     - Avoids admin/user profile mismatch after elevation
+REM     - Uses PowerShell args to avoid fragile string quoting
 REM ============================================================
 set "SHORTCUT_NAME=Ascension Launcher"
 set "ICON_EXE=%ASC_EXE%"
 if not exist "%ICON_EXE%" if exist "%ProgramFiles%\Ascension Launcher\Ascension Launcher.exe" set "ICON_EXE=%ProgramFiles%\Ascension Launcher\Ascension Launcher.exe"
 if not exist "%ICON_EXE%" if defined ProgramFiles(x86) if exist "%ProgramFiles(x86)%\Ascension Launcher\Ascension Launcher.exe" set "ICON_EXE=%ProgramFiles(x86)%\Ascension Launcher\Ascension Launcher.exe"
-set "DESKTOP=%USERPROFILE%\Desktop"
+
+REM --- Target the Common (Public) Desktop to survive elevation/user switches
+set "DESKTOP=%Public%\Desktop"
+if not exist "%DESKTOP%" mkdir "%DESKTOP%" >nul 2>&1
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$ws=New-Object -ComObject WScript.Shell; $s=$ws.CreateShortcut('%DESKTOP%\%SHORTCUT_NAME%.lnk');" ^
-  "$s.TargetPath='%BAT_PATH%'; $s.WorkingDirectory='%IPC_DIR%';" ^
-  "if(Test-Path '%ICON_EXE%'){ $s.IconLocation='%ICON_EXE%,0' };" ^
-  "$s.Description='Ascension + WoWPresence'; $s.Save()"
+  "$desktop=$args[0]; $bat=$args[1]; $work=$args[2]; $icon=$args[3]; $name=$args[4]; " ^
+  "try { " ^
+  "  [IO.Directory]::CreateDirectory($desktop) ^| Out-Null; " ^
+  "  $ws = New-Object -ComObject WScript.Shell; " ^
+  "  $lnk = Join-Path $desktop ($name + '.lnk'); " ^
+  "  $s = $ws.CreateShortcut($lnk); " ^
+  "  $s.TargetPath = $bat; " ^
+  "  $s.WorkingDirectory = $work; " ^
+  "  if (Test-Path $icon) { $s.IconLocation = $icon + ',0' } " ^
+  "  $s.Description = 'Ascension + WoWPresence'; " ^
+  "  $s.Save(); " ^
+  "} catch { exit 1 }" ^
+  "%DESKTOP%" "%BAT_PATH%" "%IPC_DIR%" "%ICON_EXE%" "%SHORTCUT_NAME%"
+if errorlevel 1 (
+  echo [ERROR] Failed to create the desktop shortcut in "%DESKTOP%".
+)
 
 echo.
 echo Installation complete.
-echo - AddOns: "%ADDONS_DIR%"
-echo - IPC:     "%IPC_DIR%"
+echo - AddOns:    "%ADDONS_DIR%"
+echo - IPC:       "%IPC_DIR%"
 echo - Ascension: "%ASC_EXE%"
-echo - Shortcut on Desktop: "%SHORTCUT_NAME%.lnk"
+echo - Shortcut:  "%DESKTOP%\%SHORTCUT_NAME%.lnk"
 echo.
 echo IMPORTANT: Always launch using the shortcut or the .bat inside AddOns\IPC.
 echo [Do NOT move the .bat elsewhere.]
