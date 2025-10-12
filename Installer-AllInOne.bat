@@ -217,22 +217,12 @@ REM --- Target the Common (Public) Desktop to survive elevation/user switches
 set "DESKTOP=%Public%\Desktop"
 if not exist "%DESKTOP%" mkdir "%DESKTOP%" >nul 2>&1
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$desktop=$args[0]; $bat=$args[1]; $work=$args[2]; $icon=$args[3]; $name=$args[4]; " ^
-  "try { " ^
-  "  [IO.Directory]::CreateDirectory($desktop) ^| Out-Null; " ^
-  "  $ws = New-Object -ComObject WScript.Shell; " ^
-  "  $lnk = Join-Path $desktop ($name + '.lnk'); " ^
-  "  $s = $ws.CreateShortcut($lnk); " ^
-  "  $s.TargetPath = $bat; " ^
-  "  $s.WorkingDirectory = $work; " ^
-  "  if (Test-Path $icon) { $s.IconLocation = $icon + ',0' } " ^
-  "  $s.Description = 'Ascension + WoWPresence'; " ^
-  "  $s.Save(); " ^
-  "} catch { exit 1 }" ^
-  "%DESKTOP%" "%BAT_PATH%" "%IPC_DIR%" "%ICON_EXE%" "%SHORTCUT_NAME%"
+setlocal DisableDelayedExpansion
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Add-Type -AssemblyName System.Windows.Forms; $desktop='%DESKTOP%'; $bat='%BAT_PATH%'; $work='%IPC_DIR%'; $icon='%ICON_EXE%'; $name='%SHORTCUT_NAME%'; try { [IO.Directory]::CreateDirectory($desktop) | Out-Null; $ws = New-Object -ComObject WScript.Shell; $lnk = Join-Path $desktop ($name + '.lnk'); $s = $ws.CreateShortcut($lnk); $s.TargetPath = $bat; $s.WorkingDirectory = $work; if (Test-Path $icon) { $s.IconLocation = $icon + ',0' }; $s.Description = 'Ascension + WoWPresence'; $s.Save(); } catch { exit 1 }"
+endlocal
+
 if errorlevel 1 (
-  echo [ERROR] Failed to create the desktop shortcut in "%DESKTOP%".
+    echo [ERROR] Failed to create the desktop shortcut in "%DESKTOP%".
 )
 
 echo.
